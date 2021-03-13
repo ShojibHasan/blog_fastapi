@@ -4,9 +4,9 @@ from fastapi.params import Depends
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.functions import mode
 from .database import SessionLocal, engine
-from . import schemas, models
+from . import schemas, models,hashing
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+
 
 app= FastAPI()
 
@@ -63,13 +63,20 @@ def show(id, response: Response, db: Session=Depends(get_db)):
 
 
 
-pwd_cxt = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@app.post('/user',status_code=status.HTTP_201_CREATED)
+
+@app.post('/user', response_model= schemas.ShowUser ,status_code=status.HTTP_201_CREATED)
 def create_user(request: schemas.User,db: Session=Depends(get_db)):
-    hashedPassword = pwd_cxt.hash(request.password)
-    new_user = models.User(name=request.name,email=request.email,password= hashedPassword)
+    
+    new_user = models.User(name=request.name,email=request.email,password= hashing.Hash.bcrypt(request.password))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
+
+@app.get('/user/{id}', response_model= schemas.ShowUser)
+def get_user(id:int,db: Session=Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f'User with the id {id} is not available')
+    return user
